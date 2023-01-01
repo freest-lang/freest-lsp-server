@@ -1,0 +1,45 @@
+name:                FreeSTLsp
+version:             1.0.0
+#github:              "githubuser/ContextFreeSession"
+license:             BSD3
+author:              "Diogo Barros"
+copyright:           "2022 authors"
+
+#extra-source-files:
+#- README.md
+# Metadata used when publishing your package
+# synopsis:            Short description of your package
+# category:            Web
+
+# To avoid duplicated efforts in documentation and dealing with the
+# complications of embedding Haddock markup inside cabal files, it is
+# common to point users to the README.md file.
+
+dependencies:
+  - FreeST >= 2.2.0
+  - base >= 4.7 && < 5
+  - containers >=0.5.9
+  - mtl >= 2.2.1
+  - lsp
+  - text
+  - sorted-list
+  - unliftio-core
+  - unordered-containers
+  - transformers >= 0.5.6.2
+
+# library:
+#   source-dirs: src
+#   exposed-modules:
+#     # FreeST LSP
+#     - FreeSTLspServer
+#     - LSP.Handler
+#     - LSP.Translate
+#     - LSP.Check
+
+executables:
+  freestlspserver:
+    main: FreeSTLspServer.hs
+    source-dirs: src
+    ghc-options: -main-is FreeSTLspServer
+    dependencies:
+      - FreeST >= 2.2.0 

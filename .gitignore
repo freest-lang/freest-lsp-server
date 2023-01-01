@@ -1,0 +1,4 @@
+.stack-work/
+*.ghci
+stack.yaml.lock
+*.cabal
