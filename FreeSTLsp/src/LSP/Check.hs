@@ -58,7 +58,7 @@ checkForParseErrors filePath = do
     -- Parse
     s2 <- parseAndImport s1{builtins=bs, runOpts=runOpts{runFilePath=filePath}}
     if hasErrors s2 
-    then trace (show $ map (errorTypeToDiagnostic s2) (errors s2)) $ return $ Left $ map (errorTypeToDiagnostic s2) (errors s2)
+    then return $ Left $ map (errorTypeToDiagnostic s2) (errors s2)
     else checkTypeDecl s2 runOpts filePath
     
     where
