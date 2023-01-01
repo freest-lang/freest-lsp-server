@@ -22,11 +22,11 @@ import LSP.FreestLspM
 -- FreeST
 import Util.FreestState
 
--- Others
+-- Haskell
 import Control.Monad.IO.Class ( MonadIO(liftIO) )
 import Control.Monad.State
 import Control.Concurrent.MVar
-
+import System.IO ( hPutStrLn, stderr )
 
 handlers :: Handlers (FreestLspM ())
 handlers = mconcat
@@ -39,6 +39,7 @@ handlers = mconcat
 
 main :: IO Int
 main =
+  hPutStrLn stderr "FreeST LSP server connected." >>
   newMVar Nothing >>= \state ->
   runServer $ ServerDefinition
   { onConfigurationChange = const $ pure $ Right ()

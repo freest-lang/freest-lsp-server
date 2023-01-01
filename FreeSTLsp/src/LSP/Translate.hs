@@ -40,6 +40,7 @@ errorTypeToDiagnostic s err =
 --         (spanToRange $ getSpan wrn)
 
 posToPosition :: Pos -> Position
+posToPosition (0, 0) = Position 0 0
 posToPosition (line, column) = Position (line-1) (column-1)
 
 spanToRange :: Span -> Range
@@ -57,10 +58,10 @@ dataToSession ctx (Char s)   = (ctx, sendT (Char s)  , [])
 dataToSession ctx (Bool s)   = (ctx, sendT (Bool s)  , [])
 dataToSession ctx (String s) = (ctx, sendT (String s), [])
 dataToSession ctx (Unit s)   = (ctx, sendT (Unit s)  , [])
-dataToSession ctx (Pair s t1 t2) = 
-    let (ctx1, t1', ts1) = dataToSession ctx t1 in
-    let (ctx2, t2', ts2) = dataToSession ctx1 t2 in
-    (ctx2, Semi s t1' t2', ts1 ++ ts2)
+-- dataToSession ctx (Pair s t1 t2) = 
+--     let (ctx1, t1', ts1) = dataToSession ctx t1 in
+--     let (ctx2, t2', ts2) = dataToSession ctx1 t2 in
+--     (ctx2, Semi s t1' t2', ts1 ++ ts2)
 -- | Datatype constructors are arrow functions
 dataToSession ctx (Arrow s _ t1 t2) = 
     let (ctx1, t1', ts1) = dataToSession ctx t1 in
