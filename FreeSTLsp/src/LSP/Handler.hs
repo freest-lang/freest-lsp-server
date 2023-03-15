@@ -7,7 +7,7 @@ module LSP.Handler
     ( handleInitialized
     , handleWorkspaceDidChangeWatchedFiles
     , handleTextDocumentHover
-    , handleTextDocumentCodeAction
+    , -- handleTextDocumentCodeAction
     ) where
 
 -- LSP
@@ -19,7 +19,7 @@ import           Language.LSP.Diagnostics ( partitionBySource )
 
 -- FreeST LSP
 import           LSP.Check (checkForErrors)
-import           LSP.Translate (spanToRange, dataToPrettySession)
+import           LSP.Translate (spanToRange)
 import           LSP.Util
 import           LSP.FreestLspM
 
@@ -129,49 +129,49 @@ handleTextDocumentHover =
     f _ [] = ""
 
 
-handleTextDocumentCodeAction :: Handlers (FreestLspM ())
-handleTextDocumentCodeAction =
-  requestHandler STextDocumentCodeAction $ \req responder -> do
-    let RequestMessage _ _ _ (CodeActionParams _ _ (TextDocumentIdentifier uri) range _) = req
+-- handleTextDocumentCodeAction :: Handlers (FreestLspM ())
+-- handleTextDocumentCodeAction =
+--   requestHandler STextDocumentCodeAction $ \req responder -> do
+--     let RequestMessage _ _ _ (CodeActionParams _ _ (TextDocumentIdentifier uri) range _) = req
     
-    maybeState <- get
-    case maybeState of
-      Nothing ->
-        emptyResponse responder
-      Just state -> do
-        let tEnv = typeEnv state
-        case Data.List.find (isRangeInsideRange range . spanToRange . getSpan) $ Map.keys tEnv of
-          Nothing -> 
-            emptyResponse responder
-          Just var ->
-            let t = snd $ tEnv Map.! var in
-            if not $ isDatatype t
-            then emptyResponse responder
-            else do
-              let prettySessions = dataToPrettySession (Map.map snd tEnv) t
-                  textEdit = TextEdit originRange $ Text.pack prettySessions
-                  workspaceEdit = WorkspaceEdit (Just $ HashMap.singleton uri $ List [textEdit]) 
-                                                Nothing
-                                                Nothing
-              if prettySessions == "\n"
-              then emptyResponse responder
-              else do
-                responder $ Right $ List $ 
-                  [InR $ 
-                    CodeAction (Text.pack $ "Generate Session Type: " ++ intern var ++ "C")
-                              (Just CodeActionRefactor)
-                              Nothing 
-                              (Just True) 
-                              Nothing 
-                              (Just workspaceEdit) 
-                              Nothing 
-                              Nothing
-                  ]
-                -- responder (Left $ ResponseError RequestCancelled "not implemented" Nothing)
-  where
-    emptyResponse responder = responder $ Right $ List []
+--     maybeState <- get
+--     case maybeState of
+--       Nothing ->
+--         emptyResponse responder
+--       Just state -> do
+--         let tEnv = typeEnv state
+--         case Data.List.find (isRangeInsideRange range . spanToRange . getSpan) $ Map.keys tEnv of
+--           Nothing -> 
+--             emptyResponse responder
+--           Just var ->
+--             let t = snd $ tEnv Map.! var in
+--             if not $ isDatatype t
+--             then emptyResponse responder
+--             else do
+--               let prettySessions = dataToPrettySession (Map.map snd tEnv) t
+--                   textEdit = TextEdit originRange $ Text.pack prettySessions
+--                   workspaceEdit = WorkspaceEdit (Just $ HashMap.singleton uri $ List [textEdit]) 
+--                                                 Nothing
+--                                                 Nothing
+--               if prettySessions == "\n"
+--               then emptyResponse responder
+--               else do
+--                 responder $ Right $ List $ 
+--                   [InR $ 
+--                     CodeAction (Text.pack $ "Generate Session Type: " ++ intern var ++ "C")
+--                               (Just CodeActionRefactor)
+--                               Nothing 
+--                               (Just True) 
+--                               Nothing 
+--                               (Just workspaceEdit) 
+--                               Nothing 
+--                               Nothing
+--                   ]
+--                 -- responder (Left $ ResponseError RequestCancelled "not implemented" Nothing)
+--   where
+--     emptyResponse responder = responder $ Right $ List []
 
-    isDatatype :: T.Type -> Bool
-    isDatatype (T.Rec _ (Bind _ _ _ t))  = isDatatype t
-    isDatatype (T.Almanac _ T.Variant m) = True --c `Map.member` m
-    isDatatype _                         = False
+--     isDatatype :: T.Type -> Bool
+--     isDatatype (T.Rec _ (Bind _ _ _ t))  = isDatatype t
+--     isDatatype (T.Almanac _ T.Variant m) = True --c `Map.member` m
+--     isDatatype _                         = False

@@ -14,7 +14,7 @@ import LSP.Handler
     ( handleInitialized
     , handleWorkspaceDidChangeWatchedFiles
     , handleTextDocumentHover
-    , handleTextDocumentCodeAction
+    --, handleTextDocumentCodeAction
     )
 
 import LSP.FreestLspM
@@ -33,7 +33,7 @@ handlers = mconcat
   [ handleInitialized
   , handleWorkspaceDidChangeWatchedFiles
   --, handleTextDocumentHover
-  , handleTextDocumentCodeAction
+  --, handleTextDocumentCodeAction
   ]
 
 
