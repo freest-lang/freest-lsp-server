@@ -2,3 +2,5 @@
 *.ghci
 stack.yaml.lock
 *.cabal
+!distros/FreeST-2.3.1.tar.gz
+distros/*.tar.gz

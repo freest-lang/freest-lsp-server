@@ -51,45 +51,46 @@ spanToRange (Span startPos endPos _) =
 
 -- | FreeST Datatype -> FreeST Session Type
 
--- dataToSession :: TypeMap -> Type -> (TypeMap, Type, [(String, Type)])
--- -- | Basic types
--- dataToSession ctx (Int s)    = (ctx, sendT (Int s)   , [])
--- dataToSession ctx (Char s)   = (ctx, sendT (Char s)  , [])
--- dataToSession ctx (Bool s)   = (ctx, sendT (Bool s)  , [])
--- dataToSession ctx (String s) = (ctx, sendT (String s), [])
--- dataToSession ctx (Unit s)   = (ctx, sendT (Unit s)  , [])
--- -- dataToSession ctx (Pair s t1 t2) = 
--- --     let (ctx1, t1', ts1) = dataToSession ctx t1 in
--- --     let (ctx2, t2', ts2) = dataToSession ctx1 t2 in
--- --     (ctx2, Semi s t1' t2', ts1 ++ ts2)
--- -- | Datatype constructors are arrow functions
--- dataToSession ctx (Arrow s _ t1 t2) = 
+dataToSession :: TypeMap -> Type -> (TypeMap, Type, [(String, Type)])
+-- | Basic types
+dataToSession ctx (Int s)    = (ctx, sendT (Int s)   , [])
+dataToSession ctx (Char s)   = (ctx, sendT (Char s)  , [])
+dataToSession ctx str@(String s) = (ctx, sendT str, [])
+dataToSession ctx unit@(Labelled s record m)
+    | Map.null m = (ctx, sendT unit, [])
+    -- | otherwise = 
+-- dataToSession ctx (Pair s t1 t2) = 
 --     let (ctx1, t1', ts1) = dataToSession ctx t1 in
 --     let (ctx2, t2', ts2) = dataToSession ctx1 t2 in
 --     (ctx2, Semi s t1' t2', ts1 ++ ts2)
--- -- | Mantain skips inserted by norm function
--- dataToSession ctx (Skip s) = (ctx, Skip s, [])
--- -- | Forall might come in future poly datatypes
--- -- dataToSession _ (Forall _ _) = undefined
--- -- | Rec types are datatypes
--- dataToSession ctx (Rec s (Bind sBind (Variable vSpan name) binder (Almanac sA sort tMap))) = 
---   let stName = name ++ "C" in
---   let stVar = mkVar vSpan stName in
---   if stVar `Map.member` ctx
---   then
---     -- Session type already exists, no need to create
---     (ctx, (Var vSpan stVar), [])
---   else
---     -- Need to create a new session type
---     let normedTMap = Map.map (norm (Variable s name)) tMap in
---     let (ctx', tMap', newTypes) = Map.foldrWithKey f (Map.insert stVar (Int defaultSpan) ctx, Map.empty, []) normedTMap in
+-- | Datatype constructors are arrow functions
+dataToSession ctx (Arrow s _ t1 t2) = 
+    let (ctx1, t1', ts1) = dataToSession ctx t1 in
+    let (ctx2, t2', ts2) = dataToSession ctx1 t2 in
+    (ctx2, Semi s t1' t2', ts1 ++ ts2)
+-- | Mantain skips inserted by norm function
+dataToSession ctx (Skip s) = (ctx, Skip s, [])
+-- | Forall might come in future poly datatypes
+-- dataToSession _ (Forall _ _) = undefined
+-- | Rec types are datatypes
+dataToSession ctx (Rec s (Bind sBind (Variable vSpan name) binder (Labelled sA sort tMap))) = 
+  let stName = name ++ "C" in
+  let stVar = mkVar vSpan stName in
+  if stVar `Map.member` ctx
+  then
+    -- Session type already exists, no need to create
+    (ctx, (Var vSpan stVar), [])
+  else
+    -- Need to create a new session type
+    let normedTMap = Map.map (norm (Variable s name)) tMap in
+    let (ctx', tMap', newTypes) = Map.foldrWithKey f (Map.insert stVar (Int defaultSpan) ctx, Map.empty, []) normedTMap in
 
---     (Map.insert stVar (Almanac s (Choice Internal) tMap') ctx', (Var vSpan stVar), (stName, Almanac s (Choice Internal) tMap') : newTypes)
---     where
---         f var t (ctx, tMap, newTypes) =
---             let (ctx', t', newTypes') = dataToSession ctx t in
---             (ctx', Map.insert var t' tMap, newTypes' ++ newTypes)
--- dataToSession ctx (Var s var) = (ctx, (Var s (Variable s $ intern var ++ "C")), [])
+    (Map.insert stVar (Labelled s (Choice Internal) tMap') ctx', (Var vSpan stVar), (stName, Labelled s (Choice Internal) tMap') : newTypes)
+    where
+        f var t (ctx, tMap, newTypes) =
+            let (ctx', t', newTypes') = dataToSession ctx t in
+            (ctx', Map.insert var t' tMap, newTypes' ++ newTypes)
+dataToSession ctx (Var s var) = (ctx, (Var s (Variable s $ intern var ++ "C")), [])
 -- | Trace any uncaught case 
 -- dataToSession _ t = trace ("Error: " ++ show t) t
 

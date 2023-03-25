@@ -53,7 +53,7 @@ packages:
 extra-deps:
   # - git: git@git.lasige.di.fc.ul.pt:vv/ContextFreeSession.git
   # - url: http://rss.di.fc.ul.pt/wp-content/uploads/2021/11/FreeST-2.2.0.zip
-  - archive: distros/FreeST-2.3.0.tar.gz
+  - archive: distros/FreeST-2.3.1.tar.gz
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

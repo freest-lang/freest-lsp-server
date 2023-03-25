@@ -22,6 +22,7 @@ import           LSP.Check (checkForErrors)
 import           LSP.Translate (spanToRange)
 import           LSP.Util
 import           LSP.FreestLspM
+import           Util.FileUtil
 
 -- FreeST
 import           Syntax.Base
@@ -35,7 +36,7 @@ import           Data.HashMap.Strict as HashMap
 import           Data.Maybe
 import           Data.Text as Text
 import           Data.List ( find )
-import           Util.FreestState (getErrors, FreestS(typeEnv))
+import           Util.FreestState (getErrors, FreestS(typeEnv, typenames))
 import           Debug.Trace      (traceM, trace)
 import           Control.Monad.Trans (lift)
 import           Control.Monad.Trans.State
@@ -94,39 +95,19 @@ handleTextDocumentHover =
   requestHandler STextDocumentHover $ \req responder -> do
     let RequestMessage _ _ _ (HoverParams (TextDocumentIdentifier uri) (Position l c) _workDone) = req
     maybeState <- get
+    word <- liftLSP (lift (getWordFromFile (l, c) (fromJust $ uriToFilePath uri)))
+
     case maybeState of
       Nothing -> emptyResponse responder
       Just state -> do
-        let tEnv = typeEnv state
-        traceM (show uri)
-        vfs <- liftLSP $ getVirtualFiles
-        traceM (show vfs)
-        maybeVFile <- liftLSP $ getVirtualFile (toNormalizedUri uri) 
-        case maybeVFile of
-          Nothing -> do
-            traceM "> no virtual file"
-            emptyResponse responder
-          Just vFile -> do
-            let varname = f c $ Text.words $ Prelude.head $ Prelude.drop l $ Text.lines $ virtualFileText vFile 
-
-            case Data.List.find (== (Variable defaultSpan (Text.unpack varname))) (Map.keys tEnv) of
-              Nothing -> do
-                traceM "> no type in position"
-                emptyResponse responder
-              Just var ->
-                let t = snd $ tEnv Map.! var in
-                responder $ Right $ Just $ 
-                Hover (HoverContents $ MarkupContent MkPlainText $ Text.pack (show t)) $ Just $ spanToRange $ getSpan var
-        return ()
+        case (typeEnv state) Map.!? mkVar defaultSpan word of
+          Nothing -> trace ("Hover: No type found for '" ++ word ++ "'") emptyResponse responder
+          Just (k, t) -> do
+            case (typenames state) Map.!? getSpan t of
+              Nothing -> trace ("Hover: No typename found for '" ++ word ++ "'") emptyResponse responder
+              Just t -> responder $ Right $ Just $ Hover (HoverContents $ MarkupContent MkPlainText $ Text.pack (show t)) $ Nothing
   where
     emptyResponse responder = responder $ Right $ Nothing
-
-    f :: Int -> [Text] -> Text
-    f i (word : words) 
-      | i < 0 = ""
-      | i < Text.length word = word
-      | otherwise = f (i - Text.length word) words
-    f _ [] = ""
 
 
 -- handleTextDocumentCodeAction :: Handlers (FreestLspM ())
