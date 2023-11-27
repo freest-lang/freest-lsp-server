@@ -13,14 +13,15 @@ import Language.LSP.Server
 import LSP.Handler
     ( handleInitialized
     , handleWorkspaceDidChangeWatchedFiles
-    , handleTextDocumentHover
+    -- , handleTextDocumentHover
     --, handleTextDocumentCodeAction
     )
 
 import LSP.FreestLspM
 
 -- FreeST
-import Util.FreestState
+import Util.State
+import Validation.Phase ( Typing )
 
 -- Haskell
 import Control.Monad.IO.Class ( MonadIO(liftIO) )
@@ -49,7 +50,7 @@ main =
   , options = defaultOptions
   }
   where 
-    forward :: LanguageContextEnv config -> MVar (Maybe FreestS) -> FreestLspM config a -> IO a
+    forward :: LanguageContextEnv config -> MVar (Maybe (FreestS Typing)) -> FreestLspM config a -> IO a
     forward env state m =
       modifyMVar state \oldState ->
         runLspT env $ runStateT m oldState >>= \(e, newState) -> return (newState, e)

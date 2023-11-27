@@ -8,24 +8,31 @@ module LSP.Check
 import qualified Language.LSP.Types as LSP
 
 -- FreeST
-import           Elaboration.Elaboration ( elaboration )
-import           Interpreter.Builtin ( initialCtx )
+import PatternMatch.PatternMatch
+
+import           Elaboration.Elaboration -- ( elaboration )
+import           Elaboration.Phase
 import           Interpreter.Eval ( evalAndPrint )
 import           Parse.Parser ( parseProgram, parseAndImport )
-import           Util.CmdLine
-import           Util.FreestState
+import           Parse.Phase
+import           Syntax.AST
 import           Syntax.Base
-import           Syntax.Program (noConstructors, VarEnv)
+import qualified Syntax.Expression as E
+import           Syntax.MkName
+import           Syntax.Program (noConstructors)
+import           Util.CmdLine
 import           Util.Error
--- import           Util.Warning
+import           Util.State
+import           Util.Warning
+import           Validation.Phase
 import           Validation.Rename ( renameState )
 import           Validation.TypeChecking ( typeCheck )
+import           PatternMatch.Phase ( PatternMatch )
 
-import           Control.Monad.State ( when, unless, execState )
+import           Control.Monad.State hiding (void)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import           Paths_FreeST ( getDataFileName )
-import           System.Exit ( die )
 
 -- FreeST LSP
 import           LSP.Translate (errorTypeToDiagnostic)
@@ -38,69 +45,86 @@ import           GHC.IO              (unsafePerformIO)
 import Debug.Trace (traceM, trace)
 
 
-checkForErrors :: FilePath -> Either [LSP.Diagnostic] FreestS
+checkForErrors :: FilePath -> Either [LSP.Diagnostic] (FreestS Typing)
 checkForErrors = unsafePerformIO . checkForParseErrors
 
 
-checkForParseErrors :: FilePath -> IO (Either [LSP.Diagnostic] FreestS)
+checkForParseErrors :: FilePath -> IO (Either [LSP.Diagnostic] (FreestS Typing))
 checkForParseErrors filePath = do
     let runOpts = defaultOpts
     -- | Prelude
-    preludeFp <- getDataFileName "Prelude.fst"
-    let s0 = initialState {runOpts=runOpts{runFilePath=preludeFp}}
+    s0 <- initialWithFile <$> getDataFileName "Prelude.fst"
     s1 <- preludeHasErrors (runFilePath runOpts) s0 <$> parseProgram s0
 
     -- | Prelude entries without body are builtins  
-    let venv = Map.keysSet (noConstructors (typeEnv s1) (varEnv s1))
-    let penv = Map.keysSet (parseEnv s1)
-    let bs = Set.difference venv penv
+    let sigs = Map.keysSet (noConstructors (getTypesS s1) (getSignaturesS s1))
+    let penv = Map.keysSet (getDefsS s1)
+    let bs = Set.difference sigs penv
 
     -- Parse
-    s2 <- parseAndImport s1{builtins=bs, runOpts=runOpts{runFilePath=filePath}}
+    -- | Parse
+    s2 <- parseAndImport s1{extra = (extra s1){runOpts}}
+
     if hasErrors s2 
-    then return $ Left $ map (errorTypeToDiagnostic s2) (errors s2)
-    else checkTypeDecl s2 runOpts filePath
+    then return $ Left $ map (errorTypeToDiagnostic s2 runOpts) (errors s2)
+    else checkPatternMatching s2 runOpts bs
     
     where
-        preludeHasErrors :: FilePath -> FreestS -> FreestS -> FreestS
+        preludeHasErrors :: FilePath -> FreestS Parse -> FreestS Parse -> FreestS Parse
         preludeHasErrors f s0 s1
             | hasErrors s1 = s0 { warnings = {-NoPrelude f :-} warnings s0 }
             | otherwise    = s1
 
-    
 
-checkTypeDecl :: FreestS -> RunOpts -> FilePath -> IO (Either [LSP.Diagnostic] FreestS)
-checkTypeDecl s2 runOpts filePath = do
-    -- | Solve type declarations and dualof operators
-    let s3 = emptyPEnv $ execState elaboration s2
-    if hasErrors s2 
-    then return $ Left $ map (errorTypeToDiagnostic s3) (errors s3)
-    else checkForTypeErrors s3
+checkPatternMatching :: FreestS Parse -> RunOpts -> Set.Set Variable -> IO (Either [LSP.Diagnostic] (FreestS Typing))
+checkPatternMatching s2 runOpts bs = do
+    -- | PatternMatch
+    let patternS = patternMatch s2
 
-checkForTypeErrors :: FreestS -> IO (Either [LSP.Diagnostic] FreestS)
-checkForTypeErrors s3 = do
-    -- | Rename
-    let s4 = execState renameState s3
+    if hasErrors patternS
+    then return $ Left $ map (errorTypeToDiagnostic patternS runOpts) (errors patternS)
+    else checkElaboration patternS runOpts bs
 
-    -- | Type check
-    let s5 = execState typeCheck s4
-    -- TODO: Add warnings
-    -- when (not (quietmode runOpts) && hasWarnings s5) (putStrLn $ getWarnings s5)
-    if hasErrors s5 
-    then return $ Left $ map (errorTypeToDiagnostic s5) (errors s5)
-    else checkFunctionBindings s5
 
-checkFunctionBindings :: FreestS -> IO (Either [LSP.Diagnostic] FreestS)
-checkFunctionBindings s5 = do
+checkElaboration :: FreestS PatternMatch -> RunOpts -> Set.Set Variable -> IO (Either [LSP.Diagnostic] (FreestS Typing))
+checkElaboration patternS runOpts bs = do
+    -- | Elaboration
+    let (defs, elabS) = elaboration patternS
+
+    if hasErrors elabS
+    then return $ Left $ map (errorTypeToDiagnostic elabS runOpts) (errors elabS)
+    else checkForTypeErrors elabS runOpts bs defs
+
+
+checkForTypeErrors :: FreestS Elab -> RunOpts -> Set.Set Variable -> Definitions Typing -> IO (Either [LSP.Diagnostic] (FreestS Typing))
+checkForTypeErrors elabS runOpts bs defs = do
+    -- | Rename & TypeCheck
+    let s4 = execState (renameState >> typeCheck) (elabToTyping runOpts defs elabS)
+
+    -- TODO: warnings
+    -- when (not (quietmode runOpts) && hasWarnings s4) (putStrLn $ getWarnings runOpts s4)
+
+    if hasErrors s4
+    then return $ Left $ map (errorTypeToDiagnostic s4 runOpts) (errors s4)
+    else checkFunctionBindings s4 runOpts bs
+
+
+
+checkFunctionBindings :: FreestS Typing -> RunOpts -> Set.Set Variable -> IO (Either [LSP.Diagnostic] (FreestS Typing))
+checkFunctionBindings s4 runOpts bs = do
     -- | Check whether a given function signature has a corresponding
     --   binding
-    let venv = Map.keysSet (noConstructors (typeEnv s5) (varEnv s5))
-    let p = Map.keysSet (prog s5)
-    let bs = Set.difference (Set.difference venv p) (builtins s5)
+    let sigs = Map.keysSet (noConstructors (types $ ast s4) (signatures $ ast s4))
+    let p = Map.keysSet (definitions $ ast s4)
+    let bs1 = Set.difference (Set.difference sigs p) bs -- (builtins s4)
     
     if Set.null bs
-    then return $ Right s5
-    else return $ Left $ map (errorTypeToDiagnostic s5) $ errors $ Set.foldr (noSig (varEnv s5)) initialState bs
+    then return $ Right s4
+    else return $ Left $ map (errorTypeToDiagnostic s4 runOpts) $ Set.foldr (noSig (getSignaturesS s4)) [] bs1
     where
-        noSig :: VarEnv -> Variable -> FreestS -> FreestS
-        noSig venv f acc = acc { errors = SignatureLacksBinding (getSpan f) f (venv Map.! f) : errors acc }
+        noSig :: Signatures -> Variable -> Errors -> Errors
+        noSig sigs f acc = SignatureLacksBinding (getSpan f) f (sigs Map.! f) : acc
+
+elabToTyping :: RunOpts -> Validation.Phase.Defs -> ElabS -> TypingS
+elabToTyping runOpts defs s = s {ast=newAst, extra = runOpts}
+  where newAst = AST {types=types $ ast s, signatures=signatures $ ast s, definitions = defs}

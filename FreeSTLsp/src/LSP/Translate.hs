@@ -17,7 +17,8 @@ import           Syntax.Base
 import           Syntax.Type
 import           Util.Error       (ErrorType, showErrors)
 -- import           Util.Warning     (WarningType, showWarnings)
-import           Util.FreestState (FreestS (runOpts, typenames), RunOpts (runFilePath))
+import           Util.State (FreestS (typenames, extra), RunOpts (runFilePath))
+import           Validation.Phase ( Typing )
 -- Others
 import           Data.Text (pack)
 import           Data.List (intercalate)
@@ -26,11 +27,11 @@ import           Debug.Trace (trace)
 
 -- | FreeST -> LSP
 
-errorTypeToDiagnostic :: FreestS -> ErrorType -> Diagnostic
-errorTypeToDiagnostic s err = 
+errorTypeToDiagnostic :: FreestS a -> RunOpts -> ErrorType -> Diagnostic
+errorTypeToDiagnostic s runOpts err = 
     buildDiagnostic 
         -- False -> isStylable, for no colors (prevents weird codes) 
-        (showErrors False (runFilePath $ runOpts s) (typenames s) err) 
+        (showErrors False (runFilePath $ runOpts) (typenames s) err) 
         (spanToRange $ getSpan err)
 
 -- warningTypeToDiagnostic :: FreestS -> WarningType -> Diagnostic
