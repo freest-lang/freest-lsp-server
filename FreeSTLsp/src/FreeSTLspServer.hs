@@ -21,7 +21,7 @@ import LSP.FreestLspM
 
 -- FreeST
 import Util.State
-import Validation.Phase ( Typing )
+import Typing.Phase ( Typing )
 
 -- Haskell
 import Control.Monad.IO.Class ( MonadIO(liftIO) )

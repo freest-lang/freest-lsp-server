@@ -15,10 +15,10 @@ import           LSP.Util ( buildDiagnostic )
 -- FreeST
 import           Syntax.Base
 import           Syntax.Type
-import           Util.Error       (ErrorType, showErrors)
+import           Util.Error       (ErrorType, showError)
 -- import           Util.Warning     (WarningType, showWarnings)
 import           Util.State (FreestS (typenames, extra), RunOpts (runFilePath))
-import           Validation.Phase ( Typing )
+import           Typing.Phase ( Typing )
 -- Others
 import           Data.Text (pack)
 import           Data.List (intercalate)
@@ -31,7 +31,7 @@ errorTypeToDiagnostic :: FreestS a -> RunOpts -> ErrorType -> Diagnostic
 errorTypeToDiagnostic s runOpts err = 
     buildDiagnostic 
         -- False -> isStylable, for no colors (prevents weird codes) 
-        (showErrors False (runFilePath $ runOpts) (typenames s) err) 
+        (showError False (Left $ runFilePath runOpts) (typenames s) err) 
         (spanToRange $ getSpan err)
 
 -- warningTypeToDiagnostic :: FreestS -> WarningType -> Diagnostic
@@ -45,7 +45,7 @@ posToPosition (0, 0) = Position 0 0
 posToPosition (line, column) = Position (line-1) (column-1)
 
 spanToRange :: Span -> Range
-spanToRange (Span startPos endPos _) = 
+spanToRange (Span _ startPos endPos) = 
     Range (posToPosition startPos) (posToPosition endPos)
 
 
@@ -74,7 +74,7 @@ dataToSession ctx (Skip s) = (ctx, Skip s, [])
 -- | Forall might come in future poly datatypes
 -- dataToSession _ (Forall _ _) = undefined
 -- | Rec types are datatypes
-dataToSession ctx (Rec s (Bind sBind (Variable vSpan name) binder (Labelled sA sort tMap))) = 
+dataToSession ctx (Rec s (Bind sBind (Variable vSpan name n) binder (Labelled sA sort tMap))) = 
   let stName = name ++ "C" in
   let stVar = mkVar vSpan stName in
   if stVar `Map.member` ctx
@@ -83,7 +83,7 @@ dataToSession ctx (Rec s (Bind sBind (Variable vSpan name) binder (Labelled sA s
     (ctx, (Var vSpan stVar), [])
   else
     -- Need to create a new session type
-    let normedTMap = Map.map (norm (Variable s name)) tMap in
+    let normedTMap = Map.map (norm (Variable s name n)) tMap in
     let (ctx', tMap', newTypes) = Map.foldrWithKey f (Map.insert stVar (Int defaultSpan) ctx, Map.empty, []) normedTMap in
 
     (Map.insert stVar (Labelled s (Choice Internal) tMap') ctx', (Var vSpan stVar), (stName, Labelled s (Choice Internal) tMap') : newTypes)
@@ -91,7 +91,7 @@ dataToSession ctx (Rec s (Bind sBind (Variable vSpan name) binder (Labelled sA s
         f var t (ctx, tMap, newTypes) =
             let (ctx', t', newTypes') = dataToSession ctx t in
             (ctx', Map.insert var t' tMap, newTypes' ++ newTypes)
-dataToSession ctx (Var s var) = (ctx, (Var s (Variable s $ intern var ++ "C")), [])
+dataToSession ctx (Var s var) = (ctx, (Var s (Variable s (intern var ++ "C") 0)), [])
 -- | Trace any uncaught case 
 -- dataToSession _ t = trace ("Error: " ++ show t) t
 

@@ -9,7 +9,7 @@ module LSP.FreestLspM where
 import           Language.LSP.Server
 -- FreeST
 import           Util.State ( FreestS )
-import           Validation.Phase ( Typing )
+import           Typing.Phase ( Typing )
 -- Haskell
 import           Control.Monad.State
 

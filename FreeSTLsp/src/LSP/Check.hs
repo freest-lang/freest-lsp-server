@@ -24,9 +24,9 @@ import           Util.CmdLine
 import           Util.Error
 import           Util.State
 import           Util.Warning
-import           Validation.Phase
-import           Validation.Rename ( renameState )
-import           Validation.TypeChecking ( typeCheck )
+import           Typing.Phase
+import           Typing.Rename ( renameProgram )
+import           Typing.Typing ( typeCheck )
 import           PatternMatch.Phase ( PatternMatch )
 
 import           Control.Monad.State hiding (void)
@@ -99,7 +99,7 @@ checkElaboration patternS runOpts bs = do
 checkForTypeErrors :: FreestS Elab -> RunOpts -> Set.Set Variable -> Definitions Typing -> IO (Either [LSP.Diagnostic] (FreestS Typing))
 checkForTypeErrors elabS runOpts bs defs = do
     -- | Rename & TypeCheck
-    let s4 = execState (renameState >> typeCheck) (elabToTyping runOpts defs elabS)
+    let s4 = execState (renameProgram >> typeCheck) (elabToTyping runOpts defs elabS)
 
     -- TODO: warnings
     -- when (not (quietmode runOpts) && hasWarnings s4) (putStrLn $ getWarnings runOpts s4)
@@ -125,6 +125,6 @@ checkFunctionBindings s4 runOpts bs = do
         noSig :: Signatures -> Variable -> Errors -> Errors
         noSig sigs f acc = SignatureLacksBinding (getSpan f) f (sigs Map.! f) : acc
 
-elabToTyping :: RunOpts -> Validation.Phase.Defs -> ElabS -> TypingS
+elabToTyping :: RunOpts -> Typing.Phase.Defs -> ElabS -> TypingS
 elabToTyping runOpts defs s = s {ast=newAst, extra = runOpts}
   where newAst = AST {types=types $ ast s, signatures=signatures $ ast s, definitions = defs}
