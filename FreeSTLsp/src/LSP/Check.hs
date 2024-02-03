@@ -43,6 +43,7 @@ import qualified Data.Map as Map
 import           GHC.IO              (unsafePerformIO)
 
 import Debug.Trace (traceM, trace)
+import Language.LSP.Types (filePathToUri)
 
 
 checkForErrors :: FilePath -> Either [LSP.Diagnostic] (FreestS Typing)
@@ -51,7 +52,7 @@ checkForErrors = unsafePerformIO . checkForParseErrors
 
 checkForParseErrors :: FilePath -> IO (Either [LSP.Diagnostic] (FreestS Typing))
 checkForParseErrors filePath = do
-    let runOpts = defaultOpts
+    let runOpts = defaultOpts{runFilePath=filePath}
     -- | Prelude
     s0 <- initialWithFile <$> getDataFileName "Prelude.fst"
     s1 <- preludeHasErrors (runFilePath runOpts) s0 <$> parseProgram s0
