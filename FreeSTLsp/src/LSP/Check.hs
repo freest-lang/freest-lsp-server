@@ -51,7 +51,7 @@ checkForErrors = unsafePerformIO . checkForParseErrors
 
 checkForParseErrors :: FilePath -> IO (Either [LSP.Diagnostic] (FreestS Typing))
 checkForParseErrors filePath = do
-    let runOpts = defaultOpts
+    let runOpts = defaultOpts{runFilePath=filePath}
     -- | Prelude
     s0 <- initialWithFile <$> getDataFileName "Prelude.fst"
     s1 <- preludeHasErrors (runFilePath runOpts) s0 <$> parseProgram s0
